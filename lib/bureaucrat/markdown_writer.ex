@@ -175,8 +175,8 @@ defmodule Bureaucrat.MarkdownWriter do
       |> puts("```")
     end
 
-    {_, content_type} = Enum.find(record.resp_headers, {"content_type", "application/json"}, fn {header, _} ->
-      header == "content_type"
+    {_, content_type} = Enum.find(record.resp_headers, {"content-type", "application/json"}, fn {header, _} ->
+      header == "content-type"
     end)
       
 
