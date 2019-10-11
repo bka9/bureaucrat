@@ -197,13 +197,14 @@ defmodule Bureaucrat.MarkdownWriter do
     ""
   end
 
-  defp format_resp_body(string, "application/json") do
-    {:ok, struct} = JSON.decode(string)
-    {:ok, json} = JSON.encode(struct, pretty: true)
-    json
-  end
-  defp format_resp_body(string, _) do
-    string
+  defp format_resp_body(string, content_type) do 
+    if String.contains?(content_type, "application/json") do
+      {:ok, struct} = JSON.decode(string)
+      {:ok, json} = JSON.encode(struct, pretty: true)
+      json
+    else
+      string
+    end
   end
 
   defp puts(file, string) do
