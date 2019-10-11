@@ -178,7 +178,7 @@ defmodule Bureaucrat.MarkdownWriter do
     file
     |> puts("* __Response body:__")
     |> puts("```json")
-    |> puts("#{format_resp_body(record.resp_body)}")
+    |> puts("#{format_resp_body(record.resp_body, Map.get(record.resp_headers, "Content-Type", "application/json"))}")
     |> puts("```")
     |> puts("")
   end
@@ -188,14 +188,17 @@ defmodule Bureaucrat.MarkdownWriter do
     json
   end
 
-  defp format_resp_body("") do
+  defp format_resp_body("", _) do
     ""
   end
 
-  defp format_resp_body(string) do
+  defp format_resp_body(string, "application/json") do
     {:ok, struct} = JSON.decode(string)
     {:ok, json} = JSON.encode(struct, pretty: true)
     json
+  end
+  defp format_resp_body(string, _) do
+    string
   end
 
   defp puts(file, string) do
