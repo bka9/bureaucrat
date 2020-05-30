@@ -3,6 +3,10 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
   This markdown writer integrates swagger information and outputs in a slate-friendly markdown format.
   It requires that the decoded swagger data be available via Application.get_env(:bureaucrat, :swagger),
   eg by passing it as an option to the Bureaucrat.start/1 function.
+
+  It can also be configured with the following options, set via the `:writer_opts` argument of Bureaucrat:
+
+  * `:plainntext`: If `false`, will not render the plaintext version of request/response examples. Defaults to `true`
   """
 
   alias Bureaucrat.JSON
@@ -254,6 +258,7 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
 
     file
     |> puts("#{details["description"]}\n")
+    |> write_request(details)
     |> write_parameters(swagger, details)
     |> write_responses(details)
   end
@@ -262,12 +267,25 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
   Find the details of an API operation in swagger by operationId
   """
   def find_operation_by_id(swagger, operation_id) do
-    Enum.flat_map(swagger["paths"], fn {_path, actions} ->
-      Enum.map(actions, fn {_action, details} -> details end)
+    Enum.flat_map(swagger["paths"], fn {path, actions} ->
+      Enum.map(actions, fn {action, details} ->
+        details
+        |> Map.put("action", action)
+        |> Map.put("path", path)
+      end)
     end)
     |> Enum.find(fn details ->
       details["operationId"] == operation_id
     end)
+  end
+
+  @doc """
+  Writes the request method and path
+  """
+  def write_request(file, %{"action" => action, "path" => path}) do
+    file
+    |> puts("### Request\n")
+    |> puts("`#{String.upcase(action)} #{path}`")
   end
 
   @doc """
@@ -278,7 +296,7 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
   """
   def write_parameters(file, swagger, _ = %{"parameters" => params}) when length(params) > 0 or map_size(params) > 0 do
     file
-    |> puts("#### Parameters\n")
+    |> puts("### Parameters\n")
     |> puts("| Parameter   | Description | In |Type      | Required | Default | Example |")
     |> puts("|-------------|-------------|----|----------|----------|---------|---------|")
 
@@ -319,7 +337,7 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
   """
   def write_responses(file, swagger_operation) do
     file
-    |> puts("#### Responses\n")
+    |> puts("### Responses\n")
     |> puts("| Status | Description | Schema |")
     |> puts("|--------|-------------|--------|")
 
@@ -340,13 +358,16 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
         str -> "#{record.request_path}?#{str}"
       end
 
+    plaintext = Keyword.get(config(), :plaintext, true)
     # Request with path and headers
-    file
-    |> puts("> #{record.assigns.bureaucrat_desc}\n")
-    |> puts("```plaintext")
-    |> puts("#{record.method} #{path}")
-    |> write_headers(record.req_headers)
-    |> puts("```\n")
+    if plaintext do
+      file
+      |> puts("> #{record.assigns.bureaucrat_desc}\n")
+      |> puts("```plaintext")
+      |> puts("#{record.method} #{path}")
+      |> write_headers(record.req_headers)
+      |> puts("```\n")
+    end
 
     # Request Body if applicable
     unless record.body_params == %{} do
@@ -359,10 +380,14 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
     # Response with status and headers
     file
     |> puts("> Response\n")
-    |> puts("```plaintext")
-    |> puts("#{record.status}")
-    |> write_headers(record.resp_headers)
-    |> puts("```\n")
+
+    if plaintext do
+      file
+      |> puts("```plaintext")
+      |> puts("#{record.status}")
+      |> write_headers(record.resp_headers)
+      |> puts("```\n")
+    end
 
     # Response body
     file
@@ -391,4 +416,6 @@ defmodule Bureaucrat.SwaggerSlateMarkdownWriter do
       _ -> string |> JSON.decode!() |> JSON.encode!(pretty: true)
     end
   end
+
+  defp config, do: Application.get_env(:bureaucrat, :writer_opts, [])
 end
